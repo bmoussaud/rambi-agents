@@ -13,13 +13,17 @@ from autogen_core.components.models import (
     UserMessage,
 )
 from dotenv import load_dotenv
-import os
+from autogen_agentchat import EVENT_LOGGER_NAME
+from autogen_agentchat.logging import ConsoleLogHandler
 
 # Get configuration settings 
 load_dotenv()
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(EVENT_LOGGER_NAME)
+logger.addHandler(ConsoleLogHandler())
+logger.setLevel(logging.DEBUG)
 
 async def main():
  
@@ -29,7 +33,7 @@ async def main():
     model_client = AzureOpenAIChatCompletionClient(
         azure_endpoint="https://27iigguorarqw-openai.openai.azure.com/",
         azure_deployment="gpt4o/chat/completions?api-version=2024-08-01-preview",
-        model="gpt4o",
+        model="gpt-4o-2024-08-06",
         api_version="2024-08-01-preview",
         model_capabilities={
             "vision": False, 
@@ -47,6 +51,6 @@ async def main():
             UserMessage(content="What is the capital of France?", source="user"),
         ]
     )
-    print(model_client_result)  # "Paris"
+    print(model_client_result.content)  # "Paris"
 
 asyncio.run(main())
