@@ -1,0 +1,4 @@
+autogen-agentchat==0.4.0.dev2
+autogen-core==0.4.0.dev2
+autogen-ext==0.4.0.dev2
+python-dotenv==1.0.1
