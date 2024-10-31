@@ -1,5 +1,5 @@
 from autogen_agentchat.agents import CodingAssistantAgent
-from autogen_agentchat.teams import MaxMessageTermination, StopMessageTermination
+from autogen_agentchat.teams import MaxMessageTermination
 from autogen_agentchat.teams import RoundRobinGroupChat
 from autogen_ext.models import AzureOpenAIChatCompletionClient
 from autogen_core.components.tools import FunctionTool
@@ -8,13 +8,13 @@ from dotenv import load_dotenv
 from autogen_agentchat.teams import SelectorGroupChat
 import logging
 import asyncio
+import json
 from typing import List, Sequence
 from autogen_agentchat.messages import ChatMessage, StopMessage, TextMessage
-from autogen_agentchat.teams import MaxMessageTermination, StopMessageTermination
+from autogen_agentchat.teams import MaxMessageTermination
 from autogen_agentchat.teams import SelectorGroupChat
 from autogen_core.base import CancellationToken
 from autogen_core.components.tools import FunctionTool
-from autogen_ext.models import OpenAIChatCompletionClient
 from autogen_agentchat import EVENT_LOGGER_NAME
 from autogen_ext.models import AzureOpenAIChatCompletionClient
 from autogen_agentchat.base import BaseChatAgent
@@ -30,19 +30,17 @@ logger.setLevel(logging.DEBUG)
 # Get configuration settings
 load_dotenv()
 
-# Get configuration settings
-load_dotenv()
 
 class UserProxyAgent(BaseChatAgent):
-    def __init__(self, name: str) -> None:
-        super().__init__(name, "A human user.")
+    def __init__(self, name: str, description: str) -> None:
+        super().__init__(name, description)
 
     @property
     def produced_message_types(self) -> List[type[ChatMessage]]:
         return [TextMessage, StopMessage]
 
     async def on_messages(self, messages: Sequence[ChatMessage], cancellation_token: CancellationToken) -> ChatMessage:
-        user_input = await asyncio.get_event_loop().run_in_executor(None, input, "Enter your response: ")
+        user_input = await asyncio.get_event_loop().run_in_executor(None, input, "\nPlease Provide a Movie Title: ")
         if "TERMINATE" in user_input:
             return StopMessage(content="User has terminated the conversation.", source=self.name)
         return TextMessage(content=user_input, source=self.name)
@@ -50,14 +48,22 @@ class UserProxyAgent(BaseChatAgent):
 async def get_movie_plot(title: str) -> str:
     print (f"\n----get_movie_plot called with {title}!!.\n")
     if title == "Inception":
-        return "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a C.E.O."
+        plot = "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a C.E.O."
+        posterURL = "https://www.imdb.com/title/tt1375666/mediaviewer/rm4285938944/"
     elif title == "Avatar":
-        return "A paraplegic Marine dispatched to the moon Pandora on a unique mission becomes torn between following his orders and protecting the world he feels is his home."
+        plot = "A paraplegic Marine dispatched to the moon Pandora on a unique mission becomes torn between following his orders and protecting the world he feels is his home."
+        posterURL = "https://www.imdb.com/title/tt0499549/mediaviewer/rm4285938945/"
     elif title == "The Blues Brothers":
-        return "Jake Blues, just released from prison, puts together his old band to save the Catholic home where he and his brother Elwood were raised." 
+        plot = "Jake Blues, just released from prison, puts together his old band to save the Catholic home where he and his brother Elwood were raised." 
+        posterURL = "https://www.imdb.com/title/tt0080455/mediaviewer/rm4285938946/"
     elif title == "Bambi":
-        return "The story of a young deer growing up in the forest."
-    return f"I'm sorry, I don't know that the {title} movie."
+        plot = "The story of a young deer growing up in the forest."
+        posterURL = "https://www.imdb.com/title/tt0034492/mediaviewer/rm4285938947/"
+    else:
+        plot = f"I'm sorry, I don't know that the {title} movie."
+        posterURL = "xxxxx"
+
+    return json.dumps({"plot": plot,"posterURL": posterURL}, indent=4)
 
 async def main():
     # Create an OpenAI model client.
@@ -105,9 +111,10 @@ async def main():
         system_message="You are a helpful assistant that can take in all of the suggestions and advice from the other agents and provide a detailed tfinal travel plan. You must ensure th b at the final plan is integrated and complete. YOUR FINAL RESPONSE MUST BE THE COMPLETE PLAN. When the plan is complete and all perspectives are integrated, you can respond with TERMINATE.",
     )
 
-    group_chat = SelectorGroupChat([UserProxyAgent("Benoit"), movie_database, movie_advisor], model_client=model_client)
-    #group_chat = RoundRobinGroupChat([movie_database, movie_advisor, french_translation_agent, summary_agent])
-    result = await group_chat.run(task="Imagine a new movie based on 2 existing movies. Result in French", termination_condition=StopMessageTermination())
+    group_chat = SelectorGroupChat([UserProxyAgent("askformovie", "Ask for movies only"), movie_database, movie_advisor], model_client=model_client)
+    group_chat = RoundRobinGroupChat([UserProxyAgent("askformovie", "Ask for movies only"), movie_database, movie_advisor])
+    result = await group_chat.run(task="Imagine a new movie based on 2 existing movies. Result in French", 
+                                  termination_condition=MaxMessageTermination(5))
     #print(result)
     # Access the messages attribute directly
     for message in result.messages:
