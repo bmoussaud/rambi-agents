@@ -1,3 +1,4 @@
+import sys
 from autogen_agentchat.agents import CodingAssistantAgent
 from autogen_agentchat.teams import MaxMessageTermination, StopMessageTermination
 from autogen_agentchat.teams import RoundRobinGroupChat
@@ -22,6 +23,7 @@ from autogen_agentchat import EVENT_LOGGER_NAME
 from autogen_agentchat.logging import ConsoleLogHandler
 from autogen_agentchat.teams import MaxMessageTermination
 from autogen_ext.models import AzureOpenAIChatCompletionClient
+from dataclasses import dataclass
 
 logger = logging.getLogger(EVENT_LOGGER_NAME)
 logger.addHandler(ConsoleLogHandler())
@@ -30,14 +32,52 @@ logger.setLevel(logging.DEBUG)
 # Get configuration settings
 load_dotenv()
 
+@dataclass
+class Movie:
+    plot: str
+    posterUrl: str 
+
+
+class ImageAgent(ToolUseAssistantAgent):
+    def __init__(self,  name: str, model_client: AzureOpenAIChatCompletionClient) -> None:
+        super().__init__(name=name, model_client=model_client, registered_tools=[
+            FunctionTool(self.my_describe_movie_poster, description="Describe a movie poster based on the URL"),
+        ], description="An agent that can describe images based on the URL, for example movie poster and other images.")
+
+    async def my_describe_movie_poster(self, posterUrl: str) -> str: 
+        print (f"\n----GPT4O describe_movie_poster called with {posterUrl}!!.\n")
+        response = await self._model_client._client.chat.completions.create(
+            model="gpt4o",
+            messages=[
+                { "role": "system", "content": "You are a helpful assistant." },
+                { "role": "user", "content": [  
+                    { 
+                        "type": "text", 
+                        "text": "Describe this picture:" 
+                    },
+                    { 
+                        "type": "image_url",
+                        "image_url": {
+                            "url": posterUrl
+                        }
+                    }
+                ] } 
+            ],
+            max_tokens=2000 
+        )
+        # Return the generated description
+        print (f"\n---GPT4O answer: {response.choices[0].message.content}.\n")
+        return response.choices[0].message.content
+    
+
+
 class MovieDatabaseAgent(ToolUseAssistantAgent):
     def __init__(self,  name: str, model_client: AzureOpenAIChatCompletionClient) -> None:
         super().__init__(name=name, model_client=model_client, registered_tools=[
-            FunctionTool(self.my_get_movie_plot, description="Get the plot of a movie"),
-            FunctionTool(self.my_describe_movie_poster, description="Describe a movie poster based on the URL"),
+            FunctionTool(self.my_get_movie_plot, description="Get the plot of a movie using its title"),
         ], description="An agent that can search information about movies (plot, actors, posters, etc.)")
 
-    async def my_get_movie_plot(self, title: str) -> str:
+    async def my_get_movie_plot(self, title: str) -> Movie:
         print (f"\n----SELF get_movie_plot called with {title}!!.\n")
         if title == "Inception":
             plot = "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a C.E.O."
@@ -55,13 +95,12 @@ class MovieDatabaseAgent(ToolUseAssistantAgent):
             plot = f"I'm sorry, I don't know that the {title} movie."
             posterURL = "xxxxx"
 
-        return json.dumps({"plot": plot,"posterURL": posterURL}, indent=4)
+        #return json.dumps({"plot": plot,"posterURL": posterURL}, indent=4)
+        return Movie(plot, posterURL)
     
-    async def my_describe_movie_poster(self, posterUrl: str) -> str: 
-        print (f"\n----SELF describe_movie_poster called with {posterUrl}!!.\n")
-        return f"The poster is a beautiful image of the movie."   
-
-
+    
+    
+       
 
 class UserProxyAgent(BaseChatAgent):
     def __init__(self, name: str, description: str) -> None:
@@ -91,6 +130,7 @@ async def get_movie_plot(title: str) -> str:
     elif title == "Bambi":
         plot = "The story of a young deer growing up in the forest."
         posterURL = "https://image.tmdb.org/t/p/original/wV9e2y4myJ4KMFsyFfWYcUOawyK.jpg"
+        posterURL = "https://image.tmdb.org/t/p/original/rhYJKOt6UrQq7JQgLyQcSWW5R86.jpg"
     else:
         plot = f"I'm sorry, I don't know that the {title} movie."
         posterURL = "xxxxx"
@@ -127,6 +167,11 @@ async def main():
     )
 
     movie_database_agent = MovieDatabaseAgent("movie_database_agent", model_client)
+    image_agent = ImageAgent("movie_poster_agent", model_client)
+    #description = await movie_database_agent.my_describe_movie_poster("https://image.tmdb.org/t/p/original/wV9e2y4myJ4KMFsyFfWYcUOawyK.jpg")
+    #print(description)
+
+    #sys.exit(100)
 
     movie_advisor = CodingAssistantAgent(
         "movie_advisor",
@@ -162,8 +207,9 @@ async def main():
     user_proxy = UserProxyAgent("askformovie", "Ask for movies only")
     #group_chat = SelectorGroupChat([ movie_database, describe_image_agent, movie_advisor], model_client=model_client)
     group_chat = RoundRobinGroupChat([ movie_database,describe_image_agent, summary_agent])
-    group_chat2 = RoundRobinGroupChat([ movie_database_agent,summary_agent])
-    result = await group_chat2.run(task="The 2 movies are Inception and Avatar. Grab information about these movies (plot, poster description) then imagine a new movie based on 2 existing movies, include plot and poster.nResult in French. ", 
+    group_chat2 = RoundRobinGroupChat([ movie_database_agent,image_agent, summary_agent])
+    group_chat3 = SelectorGroupChat([ movie_database_agent,image_agent, summary_agent], model_client=model_client)
+    result = await group_chat2.run(task="The 2 movies are Bambi and Avatar. Grab information about these movies (plot, posterUrl and a sharp description of the poster). Use movie_poster_agent to get description of all posters. Result in French. ", 
                                   termination_condition=StopMessageTermination())
     #print(result)
     # Access the messages attribute directly
