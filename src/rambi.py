@@ -1,5 +1,5 @@
 from autogen_agentchat.agents import CodingAssistantAgent
-from autogen_agentchat.teams import MaxMessageTermination
+from autogen_agentchat.teams import MaxMessageTermination, StopMessageTermination
 from autogen_agentchat.teams import RoundRobinGroupChat
 from autogen_ext.models import AzureOpenAIChatCompletionClient
 from autogen_core.components.tools import FunctionTool
@@ -30,6 +30,38 @@ logger.setLevel(logging.DEBUG)
 # Get configuration settings
 load_dotenv()
 
+class MovieDatabaseAgent(ToolUseAssistantAgent):
+    def __init__(self,  name: str, model_client: AzureOpenAIChatCompletionClient) -> None:
+        super().__init__(name=name, model_client=model_client, registered_tools=[
+            FunctionTool(self.my_get_movie_plot, description="Get the plot of a movie"),
+            FunctionTool(self.my_describe_movie_poster, description="Describe a movie poster based on the URL"),
+        ], description="An agent that can search information about movies (plot, actors, posters, etc.)")
+
+    async def my_get_movie_plot(self, title: str) -> str:
+        print (f"\n----SELF get_movie_plot called with {title}!!.\n")
+        if title == "Inception":
+            plot = "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a C.E.O."
+            posterURL = "https://image.tmdb.org/t/p/original/ljsZTbVsrQSqZgWeep2B1QiDKuh.jpg"
+        elif title == "Avatar":
+            plot = "A paraplegic Marine dispatched to the moon Pandora on a unique mission becomes torn between following his orders and protecting the world he feels is his home."
+            posterURL = "https://image.tmdb.org/t/p/original/kyeqWdyUXW608qlYkRqosgbbJyK.jpg"
+        elif title == "The Blues Brothers":
+            plot = "Jake Blues, just released from prison, puts together his old band to save the Catholic home where he and his brother Elwood were raised." 
+            posterURL = "https://image.tmdb.org/t/p/original/rhYJKOt6UrQq7JQgLyQcSWW5R86.jpg"
+        elif title == "Bambi":
+            plot = "The story of a young deer growing up in the forest."
+            posterURL = "https://image.tmdb.org/t/p/original/wV9e2y4myJ4KMFsyFfWYcUOawyK.jpg"
+        else:
+            plot = f"I'm sorry, I don't know that the {title} movie."
+            posterURL = "xxxxx"
+
+        return json.dumps({"plot": plot,"posterURL": posterURL}, indent=4)
+    
+    async def my_describe_movie_poster(self, posterUrl: str) -> str: 
+        print (f"\n----SELF describe_movie_poster called with {posterUrl}!!.\n")
+        return f"The poster is a beautiful image of the movie."   
+
+
 
 class UserProxyAgent(BaseChatAgent):
     def __init__(self, name: str, description: str) -> None:
@@ -49,21 +81,25 @@ async def get_movie_plot(title: str) -> str:
     print (f"\n----get_movie_plot called with {title}!!.\n")
     if title == "Inception":
         plot = "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a C.E.O."
-        posterURL = "https://www.imdb.com/title/tt1375666/mediaviewer/rm4285938944/"
+        posterURL = "https://image.tmdb.org/t/p/original/ljsZTbVsrQSqZgWeep2B1QiDKuh.jpg"
     elif title == "Avatar":
         plot = "A paraplegic Marine dispatched to the moon Pandora on a unique mission becomes torn between following his orders and protecting the world he feels is his home."
-        posterURL = "https://www.imdb.com/title/tt0499549/mediaviewer/rm4285938945/"
+        posterURL = "https://image.tmdb.org/t/p/original/kyeqWdyUXW608qlYkRqosgbbJyK.jpg"
     elif title == "The Blues Brothers":
         plot = "Jake Blues, just released from prison, puts together his old band to save the Catholic home where he and his brother Elwood were raised." 
-        posterURL = "https://www.imdb.com/title/tt0080455/mediaviewer/rm4285938946/"
+        posterURL = "https://image.tmdb.org/t/p/original/rhYJKOt6UrQq7JQgLyQcSWW5R86.jpg"
     elif title == "Bambi":
         plot = "The story of a young deer growing up in the forest."
-        posterURL = "https://www.imdb.com/title/tt0034492/mediaviewer/rm4285938947/"
+        posterURL = "https://image.tmdb.org/t/p/original/wV9e2y4myJ4KMFsyFfWYcUOawyK.jpg"
     else:
         plot = f"I'm sorry, I don't know that the {title} movie."
         posterURL = "xxxxx"
 
     return json.dumps({"plot": plot,"posterURL": posterURL}, indent=4)
+
+async def describe_movie_poster(posterUrl: str) -> str:
+    print (f"\n----describe_movie_poster called with {posterUrl}!!.\n")
+    return f"The poster is a beautiful image of the movie."
 
 async def main():
     # Create an OpenAI model client.
@@ -83,18 +119,30 @@ async def main():
     movie_database = ToolUseAssistantAgent(
         "movie_database",
         model_client=model_client,
-        description="An agent that can search information about movies (plot, actors, etc.)",
+        description="An agent that can search information about movies (plot, actors, posters, etc.)",
         system_message="You are a helpful AI assistant. Solve tasks using your tools.",
         registered_tools=[
             FunctionTool(get_movie_plot, description="Get the plot of a movie"),
         ],
     )
 
+    movie_database_agent = MovieDatabaseAgent("movie_database_agent", model_client)
+
     movie_advisor = CodingAssistantAgent(
         "movie_advisor",
         model_client=model_client,
         description="Assist in creating a new movie plot based on 2 existing movies",
         system_message="You are a helpful assistant that can suggest a new movie plot for a user based on 2 existing movies but have no knowledge about existing movies.",
+    )
+
+    describe_image_agent = ToolUseAssistantAgent(
+        "describe_image",
+        model_client=model_client,
+        description="Assist in describing any images provided as an URL",
+        system_message="You are a helpful AI assistant. Solve tasks using your tools.",
+        registered_tools=[
+            FunctionTool(describe_movie_poster, description="Describe a movie poster based on the URL"),
+        ],
     )
 
     french_translation_agent = CodingAssistantAgent(
@@ -111,15 +159,19 @@ async def main():
         system_message="You are a helpful assistant that can take in all of the suggestions and advice from the other agents and provide a detailed tfinal travel plan. You must ensure th b at the final plan is integrated and complete. YOUR FINAL RESPONSE MUST BE THE COMPLETE PLAN. When the plan is complete and all perspectives are integrated, you can respond with TERMINATE.",
     )
 
-    group_chat = SelectorGroupChat([UserProxyAgent("askformovie", "Ask for movies only"), movie_database, movie_advisor], model_client=model_client)
-    group_chat = RoundRobinGroupChat([UserProxyAgent("askformovie", "Ask for movies only"), movie_database, movie_advisor])
-    result = await group_chat.run(task="Imagine a new movie based on 2 existing movies. Result in French", 
-                                  termination_condition=MaxMessageTermination(5))
+    user_proxy = UserProxyAgent("askformovie", "Ask for movies only")
+    #group_chat = SelectorGroupChat([ movie_database, describe_image_agent, movie_advisor], model_client=model_client)
+    group_chat = RoundRobinGroupChat([ movie_database,describe_image_agent, summary_agent])
+    group_chat2 = RoundRobinGroupChat([ movie_database_agent,summary_agent])
+    result = await group_chat2.run(task="The 2 movies are Inception and Avatar. Grab information about these movies (plot, poster description) then imagine a new movie based on 2 existing movies, include plot and poster.nResult in French. ", 
+                                  termination_condition=StopMessageTermination())
     #print(result)
     # Access the messages attribute directly
+    print("== "+ str(len(result.messages))+ " message ======= \n")
     for message in result.messages:
         print(message.content)
         print("-----\n")
+    print("/== "+ str(len(result.messages))+ " message ======= \n")    
 
 
 asyncio.run(main())
