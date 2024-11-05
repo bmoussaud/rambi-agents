@@ -209,7 +209,7 @@ async def main():
     group_chat = RoundRobinGroupChat([ movie_database,describe_image_agent, summary_agent])
     group_chat2 = RoundRobinGroupChat([ movie_database_agent,image_agent, summary_agent])
     group_chat3 = SelectorGroupChat([ movie_database_agent,image_agent, summary_agent], model_client=model_client)
-    result = await group_chat2.run(task="The 2 movies are Bambi and Avatar. Grab information about these movies (plot, posterUrl and a sharp description of the poster). Use movie_poster_agent to get description of all posters. Result in French. ", 
+    result = await group_chat2.run(task="The 2 movies are Bambi and Avatar. Grab information about these movies (plot, posterUrl and a sharp description of the poster). Use movie_poster_agent to get description of all posters. Based on these 2 movies, generate a new movie with a title, a plot and a poster description.", 
                                   termination_condition=StopMessageTermination())
     #print(result)
     # Access the messages attribute directly
