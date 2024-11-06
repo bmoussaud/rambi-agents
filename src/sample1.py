@@ -35,18 +35,6 @@ logger.setLevel(logging.DEBUG)
 async def get_weather(city: str) -> str:
     return f"The weather in {city} is 72 degrees and Sunny."
 
-
-async with DockerCommandLineCodeExecutor(work_dir="coding") as code_executor:  # type: ignore[syntax]
-    code_executor_agent = CodeExecutorAgent("code_executor", code_executor=code_executor)
-    code_execution_result = code_executor_agent.on_messages(
-        messages=[
-            TextMessage(content="Here is some code \n ```python print('Hello world') \n``` ", source="user"),
-        ],
-        cancellation_token=CancellationToken(),
-    )
-    print(code_execution_result)
-
-
 async def main():
  
     
@@ -65,9 +53,23 @@ async def main():
             "function_calling" : True},
         )
     
+    #gpt-4o-mini (version:2024-07-18)
+    #https://27iigguorarqw-openai.openai.azure.com/openai/deployments/gpt-4o-mini/chat/completions?api-version=2024-08-01-preview
+    model_client = AzureOpenAIChatCompletionClient(
+        azure_endpoint="https://27iigguorarqw-openai.openai.azure.com/",
+        azure_deployment="gpt-4o-mini/chat/completions?api-version=2024-08-01-preview",
+        model="gpt-4o-mini-2024-08-01",
+        api_version="2024-08-01-preview",
+        model_capabilities={
+            "vision": True,
+            "audio": False,
+            "json_output": True,
+            "chat": True,
+            "function_calling": True},
+        )
+    
     get_weather_tool = FunctionTool(get_weather, description="Get the weather for a city")
 
-    
     tool_use_agent = ToolUseAssistantAgent(
         "tool_use_agent",
         system_message="You are a helpful assistant that solves tasks by only using your tools.",
