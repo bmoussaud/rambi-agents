@@ -22,7 +22,7 @@ from autogen_core.base import CancellationToken
 from autogen_agentchat.agents import CodeExecutorAgent
 from autogen_ext.code_executors import DockerCommandLineCodeExecutor
 import os
-
+from autogen_agentchat.agents import AssistantAgent
 # Get configuration settings
 load_dotenv()
 
@@ -40,8 +40,6 @@ async def get_weather(city: str) -> str:
 async def main():
 
     # Create an OpenAI model client.
-    # https://27iigguorarqw-openai.openai.azure.com/openai/deployments/gpt4o/chat/completions?api-version=2024-08-01-preview
-    # https://yh3bek4jwqde2-openai.openai.azure.com/openai/deployments/gpt4o/chat/completions?api-version=2024-08-01-preview
     model_client = AzureOpenAIChatCompletionClient(
         azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
         azure_deployment="gpt4o/chat/completions?api-version=2024-08-01-preview",
@@ -55,39 +53,14 @@ async def main():
             "function_calling": True},
     )
 
-    # gpt-4o-mini (version:2024-07-18)
-    # https://27iigguorarqw-openai.openai.azure.com/openai/deployments/gpt-4o-mini/chat/completions?api-version=2024-08-01-preview
-    model_client_mini = AzureOpenAIChatCompletionClient(
-        azure_endpoint="https://27iigguorarqw-openai.openai.azure.com/",
-        azure_deployment="gpt-4o-mini/chat/completions?api-version=2024-08-01-preview",
-        model="gpt-4o-mini-2024-08-01",
-        api_version="2024-08-01-preview",
-        model_capabilities={
-            "vision": True,
-            "audio": False,
-            "json_output": True,
-            "chat": True,
-            "function_calling": True},
-    )
+    agent = AssistantAgent(
+        name="assistant", model_client=model_client, tools=[get_weather])
 
-    get_weather_tool = FunctionTool(
-        get_weather, description="Get the weather for a city")
+    stream = agent.on_messages_stream(
+        [TextMessage(content="What is the weather right now in Paris?", source="user")], CancellationToken())
 
-    tool_use_agent = ToolUseAssistantAgent(
-        "tool_use_agent",
-        system_message="You are a helpful assistant that solves tasks by only using your tools.",
-        model_client=model_client,
-        registered_tools=[get_weather_tool],
-    )
-    # Log the request details
-    logging.debug("Sending request to Azure OpenAI Chat Completion API")
-    tool_result = await tool_use_agent.on_messages(
-        messages=[
-            TextMessage(
-                content="What is the weather right now in France?", source="user"),
-        ],
-        cancellation_token=CancellationToken(),
-    )
-    print(tool_result)
+    async for message in stream:
+        print(message)
+
 
 asyncio.run(main())

@@ -72,7 +72,7 @@ class ImageGeneratorAgent(BaseChatAgent):
 
         return MultiModalMessage(source=self.name, content=[url])
 
-    async def reset(self, cancellation_token: CancellationToken) -> None:
+    async def on_reset(self, cancellation_token: CancellationToken) -> None:
         """Resets the agent to its initialization state."""
         print("Reset ImageGeneratorAgent.....")
 
@@ -116,7 +116,7 @@ class MovieDatabaseAgent(AssistantAgent):
         super().__init__(name=name, model_client=model_client, tools=[
             FunctionTool(self.get_movie_plot,
                          description="Get the plot of a movie using its title"),
-        ], description="An agent that can search information about movies (plot, actors, posters, etc.)")
+        ], description="An agent that can search information about movies in public movie Databases (IMDB, TMDB) (plot, actors, posters, etc.)")
 
     # async on_messages(self, messages: Sequence[ChatMessage], cancellation_token: CancellationToken) -> ChatMessage:
 
@@ -141,25 +141,6 @@ class MovieDatabaseAgent(AssistantAgent):
         return Movie(plot, posterURL)
 
 
-class UserProxyAgent(BaseChatAgent):
-    def __init__(self, name: str, description: str) -> None:
-        super().__init__(name, description)
-
-    @property
-    def produced_message_types(self) -> List[type[ChatMessage]]:
-        return [TextMessage, StopMessage]
-
-    async def on_messages(self, messages: Sequence[ChatMessage], cancellation_token: CancellationToken) -> ChatMessage:
-        user_input = await asyncio.get_event_loop().run_in_executor(None, input, "\nPlease Provide a Movie Title: ")
-        if "TERMINATE" in user_input:
-            return StopMessage(content="User has terminated the conversation.", source=self.name)
-        return TextMessage(content=user_input, source=self.name)
-
-    async def reset(self, cancellation_token: CancellationToken) -> None:
-        """Resets the agent to its initialization state."""
-        print("Reset UserProxyAgent.....")
-
-
 async def main():
     # Create an OpenAI model client.
     model_client = AzureOpenAIChatCompletionClient(
@@ -181,32 +162,32 @@ async def main():
         "describe_poster_agent", model_client)
     poster_generator_agent = ImageGeneratorAgent("poster_generator_agent")
 
-    summary_agent = CodingAssistantAgent(
+    summary_agent = AssistantAgent(
         "summary_agent",
         model_client=model_client,
         description="A helpful assistant that can summarize the new movie.",
         system_message="You are a helpful assistant that can take in all of the suggestions and advice from the other agents and provide the final answer. YOUR FINAL RESPONSE MUST BE THE COMPLETE PLAN. When the plan is complete and all perspectives are integrated, you can respond with TERMINATE.",
     )
 
-    user_proxy = UserProxyAgent("askformovie", "Ask for movies only")
-    # group_chat = SelectorGroupChat([ movie_database, describe_image_agent, movie_advisor], model_client=model_client)
-
     termination = TextMentionTermination("TERMINATE")
 
     team_rr = RoundRobinGroupChat(
         [movie_database_agent, image_describe_agent, summary_agent],  termination_condition=termination)
-    team = SelectorGroupChat([movie_database_agent, image_describe_agent, summary_agent],
+    team = SelectorGroupChat([movie_database_agent, image_describe_agent, poster_generator_agent, summary_agent],
                              model_client=model_client, termination_condition=termination)
     task = """
     The 2 movies are Bambi and Avatar. 
     Search information about these two movies and display the title, the plot, the posterUrl and a poster description. 
     Based on these 2 movies, generate a new movie with a title, a plot and a poster description.
     """
-    stream = team_rr.run_stream(task=task)
+    stream = team.run_stream(task=task)
 
+    int_count = 0
     async for message in stream:
+        print(f"## {int_count} ----\n")
         print(message)
-        print("-----\n")
+        print(f"/## {int_count} ----\n")
+        int_count += 1
 
     print("== DONE")
 

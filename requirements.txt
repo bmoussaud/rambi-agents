@@ -1,6 +1,6 @@
-autogen-agentchat==0.4.0.dev4
-autogen-core==0.4.0.dev4
-autogen-ext==0.4.0.dev4
+autogen-agentchat==0.4.0.dev6
+autogen-core==0.4.0.dev6
+autogen-ext==0.4.0.dev6
 python-dotenv==1.0.1
 openai
 azure-core
