@@ -21,41 +21,43 @@ from autogen_agentchat.messages import TextMessage
 from autogen_core.base import CancellationToken
 from autogen_agentchat.agents import CodeExecutorAgent
 from autogen_ext.code_executors import DockerCommandLineCodeExecutor
+import os
 
-
-# Get configuration settings 
+# Get configuration settings
 load_dotenv()
 
 # Configure logging
-#logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(EVENT_LOGGER_NAME)
 logger.addHandler(ConsoleLogHandler())
 logger.setLevel(logging.DEBUG)
 
+
 async def get_weather(city: str) -> str:
     return f"The weather in {city} is 72 degrees and Sunny."
 
+
 async def main():
- 
-    
+
     # Create an OpenAI model client.
     # https://27iigguorarqw-openai.openai.azure.com/openai/deployments/gpt4o/chat/completions?api-version=2024-08-01-preview
+    # https://yh3bek4jwqde2-openai.openai.azure.com/openai/deployments/gpt4o/chat/completions?api-version=2024-08-01-preview
     model_client = AzureOpenAIChatCompletionClient(
-        azure_endpoint="https://27iigguorarqw-openai.openai.azure.com/",
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
         azure_deployment="gpt4o/chat/completions?api-version=2024-08-01-preview",
         model="gpt-4o-2024-08-06",
         api_version="2024-08-01-preview",
         model_capabilities={
-            "vision": False, 
+            "vision": False,
             "audio": False,
             "json_output": True,
             "chat": True,
-            "function_calling" : True},
-        )
-    
-    #gpt-4o-mini (version:2024-07-18)
-    #https://27iigguorarqw-openai.openai.azure.com/openai/deployments/gpt-4o-mini/chat/completions?api-version=2024-08-01-preview
-    model_client = AzureOpenAIChatCompletionClient(
+            "function_calling": True},
+    )
+
+    # gpt-4o-mini (version:2024-07-18)
+    # https://27iigguorarqw-openai.openai.azure.com/openai/deployments/gpt-4o-mini/chat/completions?api-version=2024-08-01-preview
+    model_client_mini = AzureOpenAIChatCompletionClient(
         azure_endpoint="https://27iigguorarqw-openai.openai.azure.com/",
         azure_deployment="gpt-4o-mini/chat/completions?api-version=2024-08-01-preview",
         model="gpt-4o-mini-2024-08-01",
@@ -66,9 +68,10 @@ async def main():
             "json_output": True,
             "chat": True,
             "function_calling": True},
-        )
-    
-    get_weather_tool = FunctionTool(get_weather, description="Get the weather for a city")
+    )
+
+    get_weather_tool = FunctionTool(
+        get_weather, description="Get the weather for a city")
 
     tool_use_agent = ToolUseAssistantAgent(
         "tool_use_agent",
@@ -80,7 +83,8 @@ async def main():
     logging.debug("Sending request to Azure OpenAI Chat Completion API")
     tool_result = await tool_use_agent.on_messages(
         messages=[
-            TextMessage(content="What is the weather right now in France?", source="user"),
+            TextMessage(
+                content="What is the weather right now in France?", source="user"),
         ],
         cancellation_token=CancellationToken(),
     )

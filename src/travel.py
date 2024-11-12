@@ -6,6 +6,7 @@ from autogen_ext.models import AzureOpenAIChatCompletionClient
 from dotenv import load_dotenv
 import logging
 import asyncio
+import os
 
 from autogen_agentchat import EVENT_LOGGER_NAME
 from autogen_agentchat.logging import ConsoleLogHandler
@@ -19,10 +20,11 @@ logger.setLevel(logging.INFO)
 # Get configuration settings
 load_dotenv()
 
+
 async def main():
     # Create an OpenAI model client.
     model_client = AzureOpenAIChatCompletionClient(
-        azure_endpoint="https://27iigguorarqw-openai.openai.azure.com/",
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
         azure_deployment="gpt4o/chat/completions?api-version=2024-08-01-preview",
         model="gpt-4o-2024-08-06",
         api_version="2024-08-01-preview",
@@ -32,7 +34,7 @@ async def main():
             "json_output": True,
             "chat": True,
             "function_calling": True},
-        )
+    )
 
     planner_agent = CodingAssistantAgent(
         "planner_agent",
@@ -62,9 +64,10 @@ async def main():
         system_message="You are a helpful assistant that can take in all of the suggestions and advice from the other agents and provide a detailed tfinal travel plan. You must ensure th b at the final plan is integrated and complete. YOUR FINAL RESPONSE MUST BE THE COMPLETE PLAN. When the plan is complete and all perspectives are integrated, you can respond with TERMINATE.",
     )
 
-    group_chat = RoundRobinGroupChat([planner_agent, local_agent, language_agent, travel_summary_agent])
+    group_chat = RoundRobinGroupChat(
+        [planner_agent, local_agent, language_agent, travel_summary_agent])
     result = await group_chat.run(task="Plan a 3 day trip to Tokyo.", termination_condition=StopMessageTermination())
-    #print(result)
+    # print(result)
     # Access the messages attribute directly
     for message in result.messages:
         print(message.content)

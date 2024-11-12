@@ -1,3 +1,4 @@
+from datetime import datetime
 import sys
 from autogen_agentchat.agents import CodingAssistantAgent
 
@@ -9,7 +10,7 @@ from dotenv import load_dotenv
 from autogen_agentchat.teams import SelectorGroupChat
 import logging
 import asyncio
-import json
+import os
 from typing import List, Sequence
 from autogen_agentchat.messages import ChatMessage, StopMessage, TextMessage, MultiModalMessage
 from autogen_agentchat.task import TextMentionTermination
@@ -34,7 +35,6 @@ logger.setLevel(logging.DEBUG)
 # Get configuration settings
 load_dotenv()
 
-from datetime import datetime
 
 # Get the current date and time
 current_datetime = datetime.now()
@@ -42,82 +42,86 @@ current_datetime = datetime.now()
 # Format the date and time as a string
 formatted_datetime = current_datetime.strftime("%Y-%m-%d %H:%M:%S")
 
-#promptflow tracing
+# promptflow tracing
 start_trace(collection="autogen-groupchat-"+formatted_datetime)
+
 
 @dataclass
 class Movie:
     plot: str
-    posterUrl: str 
+    posterUrl: str
 
 
 class ImageGeneratorAgent(BaseChatAgent):
     def __init__(self,  name: str) -> None:
-        super().__init__(name=name, description="An agent that can generate images for example a movie poster.")
+        super().__init__(name=name,
+                         description="An agent that can generate images for example a movie poster.")
 
     @property
     def produced_message_types(self) -> List[type[ChatMessage]]:
         return [MultiModalMessage]
-    
+
     async def on_messages(self, messages: Sequence[ChatMessage], cancellation_token: CancellationToken) -> ChatMessage:
-        print (f"\n***** DALLE 3 on_messages  {messages} )) .\n")
+        print(f"\n***** DALLE 3 on_messages  {messages} )) .\n")
         print("\nBEGIN on_messages called with messages: \n")
         for message in messages:
             print("\n-- MessageContent: "+message.content)
             print("\n-- MessageSource: "+message.source)
         print("\nEND on_messages called with messages: \n")
         url = "https://dalleprodsec.blob.core.windows.net/private/images/fa2cf45a-5978-4d6d-9717-22439278542b/generated_00.png?se=2024-11-06T13%3A52%3A22Z&sig=WG6RzlkKW5dO%2BfdgXgCEcFy2SOyCmgIHKDR0FmeJSQk%3D&ske=2024-11-11T23%3A42%3A52Z&skoid=e52d5ed7-0657-4f62-bc12-7e5dbb260a96&sks=b&skt=2024-11-04T23%3A42%3A52Z&sktid=33e01921-4d64-4f8c-a055-5bdaffd5e33d&skv=2020-10-02&sp=r&spr=https&sr=b&sv=2020-10-02"
-        
+
         return MultiModalMessage(source=self.name, content=[url])
-    
+
     async def reset(self, cancellation_token: CancellationToken) -> None:
         """Resets the agent to its initialization state."""
         print("Reset ImageGeneratorAgent.....")
-    
 
 
 class ImageDescribeAgent(AssistantAgent):
     def __init__(self,  name: str, model_client: AzureOpenAIChatCompletionClient) -> None:
         super().__init__(name=name, model_client=model_client, tools=[
-            FunctionTool(self.describe_movie_poster, description="Describe a movie poster based on the URL"),
+            FunctionTool(self.describe_movie_poster,
+                         description="Describe a movie poster based on the URL"),
         ], description="An agent that can describe images based on the URL, for example, it can describe movie posters.")
 
-    async def describe_movie_poster(self, posterUrl: str) -> str: 
-        print (f"\n----GPT4O describe_movie_poster called with {posterUrl}!!.\n")
+    async def describe_movie_poster(self, posterUrl: str) -> str:
+        print(
+            f"\n----GPT4O describe_movie_poster called with {posterUrl}!!.\n")
         response = await self._model_client._client.chat.completions.create(
             model="gpt4o",
             messages=[
-                { "role": "system", "content": "You are a helpful assistant." },
-                { "role": "user", "content": [  
-                    { 
-                        "type": "text", 
-                        "text": "Describe this picture:" 
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": [
+                    {
+                        "type": "text",
+                        "text": "Describe this picture:"
                     },
-                    { 
+                    {
                         "type": "image_url",
                         "image_url": {
                             "url": posterUrl
                         }
                     }
-                ] } 
+                ]}
             ],
-            max_tokens=2000 
+            max_tokens=2000
         )
         # Return the generated description
-        print (f"\n---GPT4O answer: {response.choices[0].message.content}.\n")
+        print(f"\n---GPT4O answer: {response.choices[0].message.content}.\n")
         return response.choices[0].message.content
-    
+
 
 class MovieDatabaseAgent(AssistantAgent):
     def __init__(self,  name: str, model_client: AzureOpenAIChatCompletionClient) -> None:
         super().__init__(name=name, model_client=model_client, tools=[
-            FunctionTool(self.get_movie_plot, description="Get the plot of a movie using its title"),
+            FunctionTool(self.get_movie_plot,
+                         description="Get the plot of a movie using its title"),
         ], description="An agent that can search information about movies (plot, actors, posters, etc.)")
 
-    #async on_messages(self, messages: Sequence[ChatMessage], cancellation_token: CancellationToken) -> ChatMessage:
+    # async on_messages(self, messages: Sequence[ChatMessage], cancellation_token: CancellationToken) -> ChatMessage:
 
     async def get_movie_plot(self, title: str) -> Movie:
-        print (f"\n----SELF get_movie_plot called with {title}!!.\n")
+        print(f"\n----SELF get_movie_plot called with {title}!!.\n")
         if title == "Inception":
             plot = "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a C.E.O."
             posterURL = "https://image.tmdb.org/t/p/original/ljsZTbVsrQSqZgWeep2B1QiDKuh.jpg"
@@ -125,7 +129,7 @@ class MovieDatabaseAgent(AssistantAgent):
             plot = "A paraplegic Marine dispatched to the moon Pandora on a unique mission becomes torn between following his orders and protecting the world he feels is his home."
             posterURL = "https://image.tmdb.org/t/p/original/kyeqWdyUXW608qlYkRqosgbbJyK.jpg"
         elif title == "The Blues Brothers":
-            plot = "Jake Blues, just released from prison, puts together his old band to save the Catholic home where he and his brother Elwood were raised." 
+            plot = "Jake Blues, just released from prison, puts together his old band to save the Catholic home where he and his brother Elwood were raised."
             posterURL = "https://image.tmdb.org/t/p/original/rhYJKOt6UrQq7JQgLyQcSWW5R86.jpg"
         elif title == "Bambi":
             plot = "The story of a young deer growing up in the forest."
@@ -135,8 +139,7 @@ class MovieDatabaseAgent(AssistantAgent):
             posterURL = "xxxxx"
 
         return Movie(plot, posterURL)
-    
-    
+
 
 class UserProxyAgent(BaseChatAgent):
     def __init__(self, name: str, description: str) -> None:
@@ -148,18 +151,19 @@ class UserProxyAgent(BaseChatAgent):
 
     async def on_messages(self, messages: Sequence[ChatMessage], cancellation_token: CancellationToken) -> ChatMessage:
         user_input = await asyncio.get_event_loop().run_in_executor(None, input, "\nPlease Provide a Movie Title: ")
-        if "TERMINATE" in user_input:    
+        if "TERMINATE" in user_input:
             return StopMessage(content="User has terminated the conversation.", source=self.name)
         return TextMessage(content=user_input, source=self.name)
 
     async def reset(self, cancellation_token: CancellationToken) -> None:
         """Resets the agent to its initialization state."""
         print("Reset UserProxyAgent.....")
-    
+
+
 async def main():
     # Create an OpenAI model client.
     model_client = AzureOpenAIChatCompletionClient(
-        azure_endpoint="https://27iigguorarqw-openai.openai.azure.com/",
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
         azure_deployment="gpt4o/chat/completions?api-version=2024-08-01-preview",
         model="gpt-4o-2024-08-06",
         api_version="2024-08-01-preview",
@@ -169,28 +173,13 @@ async def main():
             "json_output": True,
             "chat": True,
             "function_calling": True},
-        )
-    
-    
-    #gpt-4o-mini (version:2024-07-18)
-    #https://27iigguorarqw-openai.openai.azure.com/openai/deployments/gpt-4o-mini/chat/completions?api-version=2024-08-01-preview
-    model_client2 = AzureOpenAIChatCompletionClient(
-        azure_endpoint="https://27iigguorarqw-openai.openai.azure.com/",
-        azure_deployment="gpt-4o-mini/chat/completions?api-version=2024-08-01-preview",
-        model="gpt-4o-mini-2024-08-01",
-        api_version="2024-08-01-preview",
-        model_capabilities={
-            "vision": True,
-            "audio": False,
-            "json_output": True,
-            "chat": True,
-            "function_calling": True},
-        )
+    )
 
-    movie_database_agent = MovieDatabaseAgent("movie_database_agent", model_client)
-    image_describe_agent = ImageDescribeAgent("describe_poster_agent", model_client)
-    poster_generator_agent=ImageGeneratorAgent("poster_generator_agent")
-  
+    movie_database_agent = MovieDatabaseAgent(
+        "movie_database_agent", model_client)
+    image_describe_agent = ImageDescribeAgent(
+        "describe_poster_agent", model_client)
+    poster_generator_agent = ImageGeneratorAgent("poster_generator_agent")
 
     summary_agent = CodingAssistantAgent(
         "summary_agent",
@@ -200,19 +189,21 @@ async def main():
     )
 
     user_proxy = UserProxyAgent("askformovie", "Ask for movies only")
-    #group_chat = SelectorGroupChat([ movie_database, describe_image_agent, movie_advisor], model_client=model_client)
-    
+    # group_chat = SelectorGroupChat([ movie_database, describe_image_agent, movie_advisor], model_client=model_client)
+
     termination = TextMentionTermination("TERMINATE")
 
-    team_rr = RoundRobinGroupChat([ movie_database_agent,image_describe_agent, summary_agent],  termination_condition=termination)
-    team = SelectorGroupChat(  [ movie_database_agent,image_describe_agent, summary_agent], model_client=model_client, termination_condition=termination)
+    team_rr = RoundRobinGroupChat(
+        [movie_database_agent, image_describe_agent, summary_agent],  termination_condition=termination)
+    team = SelectorGroupChat([movie_database_agent, image_describe_agent, summary_agent],
+                             model_client=model_client, termination_condition=termination)
     task = """
     The 2 movies are Bambi and Avatar. 
     Search information about these two movies and display the title, the plot, the posterUrl and a poster description. 
     Based on these 2 movies, generate a new movie with a title, a plot and a poster description.
     """
     stream = team_rr.run_stream(task=task)
-            
+
     async for message in stream:
         print(message)
         print("-----\n")

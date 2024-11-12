@@ -1,6 +1,7 @@
+from dotenv import load_dotenv
 import asyncio
 import logging
-
+import os
 from autogen_agentchat import EVENT_LOGGER_NAME
 from autogen_agentchat.agents import CodingAssistantAgent
 from autogen_agentchat.logging import ConsoleLogHandler
@@ -13,30 +14,30 @@ logger = logging.getLogger(EVENT_LOGGER_NAME)
 logger.addHandler(ConsoleLogHandler())
 logger.setLevel(logging.INFO)
 
-# Get configuration settings 
-from dotenv import load_dotenv
+# Get configuration settings
 load_dotenv()
+
 
 async def main():
     # Create an OpenAI model client.
     model_client = AzureOpenAIChatCompletionClient(
-        azure_endpoint="https://27iigguorarqw-openai.openai.azure.com/",
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
         azure_deployment="gpt4o/chat/completions?api-version=2024-08-01-preview",
         model="gpt-4o-2024-08-06",
         api_version="2024-08-01-preview",
         model_capabilities={
-            "vision": False, 
+            "vision": False,
             "audio": False,
             "json_output": True,
             "chat": True,
-            "function_calling" : True},
-        )
+            "function_calling": True},
+    )
 
-    #writing_assistant_agent = CodingAssistantAgent(
+    # writing_assistant_agent = CodingAssistantAgent(
     #    name="writing_assistant_agent",
     #    system_message="You are a helpful assistant that solve tasks by generating text responses and code.",
     #    model_client=model_client,
-    #)
+    # )
 
     writing_assistant_agent = CodingAssistantAgent(
         name="writing_assistant_agent",

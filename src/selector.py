@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from typing import List, Sequence
 
 from autogen_agentchat.agents import (
@@ -18,12 +19,12 @@ from autogen_agentchat import EVENT_LOGGER_NAME
 from autogen_ext.models import AzureOpenAIChatCompletionClient
 from autogen_agentchat.base import BaseChatAgent
 
-# Get configuration settings 
+# Get configuration settings
 from dotenv import load_dotenv
 load_dotenv()
 
 # Set up a log handler to print logs to the console.$
-#logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(EVENT_LOGGER_NAME)
 logger.addHandler(ConsoleLogHandler())
 logger.setLevel(logging.INFO)
@@ -31,18 +32,17 @@ logger.setLevel(logging.INFO)
 
 # Create an OpenAI model client.
 model_client = AzureOpenAIChatCompletionClient(
-    azure_endpoint="https://27iigguorarqw-openai.openai.azure.com/",
+    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
     azure_deployment="gpt4o/chat/completions?api-version=2024-08-01-preview",
     model="gpt-4o-2024-08-06",
     api_version="2024-08-01-preview",
     model_capabilities={
-        "vision": False, 
+        "vision": False,
         "audio": False,
         "json_output": True,
         "chat": True,
-        "function_calling" : True},
-    )
-
+        "function_calling": True},
+)
 
 
 class UserProxyAgent2(BaseChatAgent):
@@ -58,7 +58,8 @@ class UserProxyAgent2(BaseChatAgent):
         if "TERMINATE" in user_input:
             return StopMessage(chat_message=StopMessage(content="User has terminated the conversation.", source=self.name))
         return TextMessage(chat_message=TextMessage(content=user_input, source=self.name))
-    
+
+
 class UserProxyAgent(BaseChatAgent):
     def __init__(self, name: str) -> None:
         super().__init__(name, "A human user.")
@@ -73,6 +74,7 @@ class UserProxyAgent(BaseChatAgent):
             return StopMessage(content="User has terminated the conversation.", source=self.name)
         return TextMessage(content=user_input, source=self.name)
 
+
 async def flight_search(start: str, destination: str, date: str) -> str:
     return "\n".join(
         [
@@ -85,6 +87,7 @@ async def flight_search(start: str, destination: str, date: str) -> str:
 
 async def flight_booking(flight: str, date: str) -> str:
     return f"Booked flight {flight} on {date}"
+
 
 async def main():
     user_proxy = UserProxyAgent("Benoit")
@@ -104,7 +107,7 @@ async def main():
         system_message="You are a travel assistant.",
     )
     team = SelectorGroupChat(
-        [user_proxy, flight_broker, travel_assistant], 
+        [user_proxy, flight_broker, travel_assistant],
         model_client=model_client
     )
     await team.run("Help user plan a trip and book a flight.", termination_condition=StopMessageTermination())

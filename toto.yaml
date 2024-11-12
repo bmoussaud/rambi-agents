@@ -1,0 +1,6 @@
+# 
+# source: https://learn.microsoft.com/en-us/azure/ai-studio/how-to/develop/trace-local-sdk?tabs=python#log-the-trace-to-ai-studio
+# pf config set trace.destination=azureml://subscriptions/<your_subscription_id>/resourcegroups/<your_resourcegroup_name>/providers/Microsoft.MachineLearningServices/workspaces/<your_studio_project_name>
+pip install promptflow
+pip install promptflow-azure
+pf config set trace.destination=azureml://subscriptions/9479b396-5d3e-467a-b89f-ba8400aeb7dd/resourceGroups/rambi-py/providers/Microsoft.CognitiveServices/accounts/27iigguorarqw-openai
