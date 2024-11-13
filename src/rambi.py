@@ -26,7 +26,7 @@ from autogen_agentchat.task import MaxMessageTermination, StopMessageTermination
 from autogen_ext.models import AzureOpenAIChatCompletionClient
 from dataclasses import dataclass
 from promptflow.tracing import start_trace
-
+from autogen_agentchat.teams import Swarm
 
 logger = logging.getLogger(EVENT_LOGGER_NAME)
 logger.addHandler(ConsoleLogHandler())
@@ -52,14 +52,33 @@ class Movie:
     posterUrl: str
 
 
-class ImageGeneratorAgent(BaseChatAgent):
+class ImageGeneratorAgent(AssistantAgent):
+    def __init__(self,  name: str, model_client: AzureOpenAIChatCompletionClient, handoffs=[]) -> None:
+        super().__init__(name=name, model_client=model_client, handoffs=handoffs, tools=[
+            FunctionTool(self.generate_movie_poster,
+                         description="generate a movie poster based on its description"),
+        ], description="An agent that can generate a movie poster based.")
+
+    async def generate_movie_poster(self, posterDescription: str) -> str:
+        print(
+            f"\n----DALLE generate_movie_poster called with {posterDescription}!!.\n")
+        # url = "https://dalleprodsec.blob.core.windows.net/private/images/2516e58b-2b3b-48ab-a9ed-11d812ed5bd4/generated_00.png?se=2024-11-13T16%3A28%3A38Z&sig=91pS4Js9gQyyiFjediYrZTbxeWrbuD9DDPaXn1FUJ0Y%3D&ske=2024-11-17T20%3A55%3A04Z&skoid=e52d5ed7-0657-4f62-bc12-7e5dbb260a96&sks=b&skt=2024-11-10T20%3A55%3A04Z&sktid=33e01921-4d64-4f8c-a055-5bdaffd5e33d&skv=2020-10-02&sp=r&spr=https&sr=b&sv=2020-10-02"
+        url = "https://bit.ly/3YOrHPI"
+        content = f"""The new poster is ![alt new movie poster]({
+            url} "New Movie Poster")"""
+        print(
+            f"\n----/DALLE generate_movie_poster URL {url}!!.\n")
+        return url
+
+
+class ImageGeneratorAgentOLD(BaseChatAgent):
     def __init__(self,  name: str) -> None:
         super().__init__(name=name,
-                         description="An agent that can generate images for example a movie poster.")
+                         description="An agent that can generate a movie poster based.")
 
     @property
     def produced_message_types(self) -> List[type[ChatMessage]]:
-        return [MultiModalMessage]
+        return [TextMessage]
 
     async def on_messages(self, messages: Sequence[ChatMessage], cancellation_token: CancellationToken) -> ChatMessage:
         print(f"\n***** DALLE 3 on_messages  {messages} )) .\n")
@@ -68,9 +87,11 @@ class ImageGeneratorAgent(BaseChatAgent):
             print("\n-- MessageContent: "+message.content)
             print("\n-- MessageSource: "+message.source)
         print("\nEND on_messages called with messages: \n")
-        url = "https://dalleprodsec.blob.core.windows.net/private/images/fa2cf45a-5978-4d6d-9717-22439278542b/generated_00.png?se=2024-11-06T13%3A52%3A22Z&sig=WG6RzlkKW5dO%2BfdgXgCEcFy2SOyCmgIHKDR0FmeJSQk%3D&ske=2024-11-11T23%3A42%3A52Z&skoid=e52d5ed7-0657-4f62-bc12-7e5dbb260a96&sks=b&skt=2024-11-04T23%3A42%3A52Z&sktid=33e01921-4d64-4f8c-a055-5bdaffd5e33d&skv=2020-10-02&sp=r&spr=https&sr=b&sv=2020-10-02"
-
-        return MultiModalMessage(source=self.name, content=[url])
+        # url = "https://dalleprodsec.blob.core.windows.net/private/images/2516e58b-2b3b-48ab-a9ed-11d812ed5bd4/generated_00.png?se=2024-11-13T16%3A28%3A38Z&sig=91pS4Js9gQyyiFjediYrZTbxeWrbuD9DDPaXn1FUJ0Y%3D&ske=2024-11-17T20%3A55%3A04Z&skoid=e52d5ed7-0657-4f62-bc12-7e5dbb260a96&sks=b&skt=2024-11-10T20%3A55%3A04Z&sktid=33e01921-4d64-4f8c-a055-5bdaffd5e33d&skv=2020-10-02&sp=r&spr=https&sr=b&sv=2020-10-02"
+        url = "https://bit.ly/3YOrHPI"
+        content = f"""The new poster is ![alt new movie poster]({
+            url} "New Movie Poster")"""
+        return TextMessage(content=content, source=self.name)
 
     async def on_reset(self, cancellation_token: CancellationToken) -> None:
         """Resets the agent to its initialization state."""
@@ -78,11 +99,11 @@ class ImageGeneratorAgent(BaseChatAgent):
 
 
 class ImageDescribeAgent(AssistantAgent):
-    def __init__(self,  name: str, model_client: AzureOpenAIChatCompletionClient) -> None:
-        super().__init__(name=name, model_client=model_client, tools=[
+    def __init__(self,  name: str, model_client: AzureOpenAIChatCompletionClient, handoffs=[]) -> None:
+        super().__init__(name=name, model_client=model_client, handoffs=handoffs, tools=[
             FunctionTool(self.describe_movie_poster,
-                         description="Describe a movie poster based on the URL"),
-        ], description="An agent that can describe images based on the URL, for example, it can describe movie posters.")
+                         description="Describe a movie poster based on an URL"),
+        ], description="An agent that can describe images based on an URL, for example, it can describe movie posters.")
 
     async def describe_movie_poster(self, posterUrl: str) -> str:
         print(
@@ -112,8 +133,8 @@ class ImageDescribeAgent(AssistantAgent):
 
 
 class MovieDatabaseAgent(AssistantAgent):
-    def __init__(self,  name: str, model_client: AzureOpenAIChatCompletionClient) -> None:
-        super().__init__(name=name, model_client=model_client, tools=[
+    def __init__(self,  name: str, model_client: AzureOpenAIChatCompletionClient, handoffs=[]) -> None:
+        super().__init__(name=name, model_client=model_client, handoffs=handoffs, tools=[
             FunctionTool(self.get_movie_plot,
                          description="Get the plot of a movie using its title"),
         ], description="An agent that can search information about movies in public movie Databases (IMDB, TMDB) (plot, actors, posters, etc.)")
@@ -134,6 +155,9 @@ class MovieDatabaseAgent(AssistantAgent):
         elif title == "Bambi":
             plot = "The story of a young deer growing up in the forest."
             posterURL = "https://image.tmdb.org/t/p/original/wV9e2y4myJ4KMFsyFfWYcUOawyK.jpg"
+        elif title == "Rambo":
+            plot = "John Rambo is released from prison by the government for a top-secret covert mission to the last place on Earth he'd want to return - the jungles of Vietnam.."
+            posterURL = "https://image.tmdb.org/t/p/w1280/pzPdwOitmTleVE3YPMfIQgLh84p.jpg"
         else:
             plot = f"I'm sorry, I don't know that the {title} movie."
             posterURL = "xxxxx"
@@ -157,26 +181,29 @@ async def main():
     )
 
     movie_database_agent = MovieDatabaseAgent(
-        "movie_database_agent", model_client)
+        "movie_database_agent",
+        model_client)
     image_describe_agent = ImageDescribeAgent(
-        "describe_poster_agent", model_client)
-    poster_generator_agent = ImageGeneratorAgent("poster_generator_agent")
+        "describe_poster_agent",
+        model_client)
+    poster_generator_agent = ImageGeneratorAgent(
+        "poster_generator_agent",
+        model_client)
 
     summary_agent = AssistantAgent(
         "summary_agent",
         model_client=model_client,
-        description="A helpful assistant that can summarize the new movie.",
-        system_message="You are a helpful assistant that can take in all of the suggestions and advice from the other agents and provide the final answer. YOUR FINAL RESPONSE MUST BE THE COMPLETE PLAN. When the plan is complete and all perspectives are integrated, you can respond with TERMINATE.",
-    )
+        description="A helpful assistant that can summarize the new movie.")
 
     termination = TextMentionTermination("TERMINATE")
 
-    team_rr = RoundRobinGroupChat(
-        [movie_database_agent, image_describe_agent, summary_agent],  termination_condition=termination)
-    team = SelectorGroupChat([movie_database_agent, image_describe_agent, poster_generator_agent, summary_agent],
-                             model_client=model_client, termination_condition=termination)
+    agents = [movie_database_agent, image_describe_agent,
+              poster_generator_agent, summary_agent]
+    team_rr = RoundRobinGroupChat(agents,  termination_condition=termination)
+    team = SelectorGroupChat(
+        agents, model_client=model_client, termination_condition=termination)
     task = """
-    The 2 movies are Bambi and Avatar. 
+    The 2 movies are Bambi and The Blues Brothers. 
     Search information about these two movies and display the title, the plot, the posterUrl and a poster description. 
     Based on these 2 movies, generate a new movie with a title, a plot and a poster description.
     """
