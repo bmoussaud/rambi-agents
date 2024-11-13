@@ -8,3 +8,4 @@ pillow
 requests
 promptflow
 promptflow-azure
+tmdbv3api

@@ -27,6 +27,7 @@ from autogen_ext.models import AzureOpenAIChatCompletionClient
 from dataclasses import dataclass
 from promptflow.tracing import start_trace
 from autogen_agentchat.teams import Swarm
+from tmdbv3api import Search
 
 logger = logging.getLogger(EVENT_LOGGER_NAME)
 logger.addHandler(ConsoleLogHandler())
@@ -48,6 +49,7 @@ start_trace(collection="autogen-groupchat-"+formatted_datetime)
 
 @dataclass
 class Movie:
+    title: str
     plot: str
     posterUrl: str
 
@@ -139,30 +141,15 @@ class MovieDatabaseAgent(AssistantAgent):
                          description="Get the plot of a movie using its title"),
         ], description="An agent that can search information about movies in public movie Databases (IMDB, TMDB) (plot, actors, posters, etc.)")
 
-    # async on_messages(self, messages: Sequence[ChatMessage], cancellation_token: CancellationToken) -> ChatMessage:
-
     async def get_movie_plot(self, title: str) -> Movie:
-        print(f"\n----SELF get_movie_plot called with {title}!!.\n")
-        if title == "Inception":
-            plot = "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a C.E.O."
-            posterURL = "https://image.tmdb.org/t/p/original/ljsZTbVsrQSqZgWeep2B1QiDKuh.jpg"
-        elif title == "Avatar":
-            plot = "A paraplegic Marine dispatched to the moon Pandora on a unique mission becomes torn between following his orders and protecting the world he feels is his home."
-            posterURL = "https://image.tmdb.org/t/p/original/kyeqWdyUXW608qlYkRqosgbbJyK.jpg"
-        elif title == "The Blues Brothers":
-            plot = "Jake Blues, just released from prison, puts together his old band to save the Catholic home where he and his brother Elwood were raised."
-            posterURL = "https://image.tmdb.org/t/p/original/rhYJKOt6UrQq7JQgLyQcSWW5R86.jpg"
-        elif title == "Bambi":
-            plot = "The story of a young deer growing up in the forest."
-            posterURL = "https://image.tmdb.org/t/p/original/wV9e2y4myJ4KMFsyFfWYcUOawyK.jpg"
-        elif title == "Rambo":
-            plot = "John Rambo is released from prison by the government for a top-secret covert mission to the last place on Earth he'd want to return - the jungles of Vietnam.."
-            posterURL = "https://image.tmdb.org/t/p/w1280/pzPdwOitmTleVE3YPMfIQgLh84p.jpg"
+        print("*** get_movie_plot called with title: "+title)
+        search_results = Search().movies(title)
+        if search_results:
+            print("*** get_movie_plot called with len: "+str(len(search_results)))
+            sr = search_results[0]  # Return the first result
+            return Movie(sr.title, sr.overview, f"https://image.tmdb.org/t/p/original/{sr.poster_path}")
         else:
-            plot = f"I'm sorry, I don't know that the {title} movie."
-            posterURL = "xxxxx"
-
-        return Movie(plot, posterURL)
+            return None
 
 
 async def main():
